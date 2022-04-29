@@ -26,7 +26,7 @@ fn new_socket(addr: &SocketAddr) -> io::Result<Socket> {
     let socket = Socket::new(domain, Type::dgram(), Some(Protocol::udp()))?;
 
     // we're going to use read timeouts so that we don't hang waiting for packets
-    socket.set_read_timeout(Some(Duration::from_millis(50)))?;
+    socket.set_read_timeout(Some(Duration::from_millis(500)))?;
 
     Ok(socket)
 }
@@ -86,7 +86,7 @@ fn new_sender(addr: &SocketAddr) -> io::Result<UdpSocket> {
 /// So we have to do some parsing of the data... it's dumb.
 fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
 
-   let IPV4: IpAddr = Ipv4Addr::new(237, 200, 1, 1).into();
+    let IPV4: IpAddr = Ipv4Addr::new(237, 200, 1, 1).into();
     // from port 60000 to port 60001
     let addr = SocketAddr::new(IPV4, 60000);
     let txaddr = SocketAddr::new(IPV4, 60001);
@@ -114,7 +114,7 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
         let outer = LNPkt {
             dst: [0x00, 0x1a, 0xf1, 0x02, 0x09, 0xee], 
             src: [0;6], 
-            seq: 0, // does it care about sequence?
+            seq: data[15], 
             is_response: 0, 
             length: (inner_vec.len() + 1).try_into().unwrap(), 
             command: 0x03, 
@@ -123,7 +123,7 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
 
         let outer_vec = outer.serialize();
 
-        println!("{:?}",outer_vec.hex_dump());
+        // println!("{:?}",outer_vec.hex_dump());
 
         responder
             .send_to(outer_vec.as_slice(), &txaddr)
@@ -136,8 +136,8 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
                 Ok((len, remote_addr)) => {
                     let data = &buf[..len];
 
-                    debug!("{:?}",data.hex_dump());
-                    // debug!("Got data");
+                    // debug!("{:?}",data.hex_dump());
+                    debug!("Got data");
 
                     let ln_pkt = LNPkt::deserialize(&data.to_vec()).unwrap();
 
@@ -149,7 +149,7 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
                             return None;
                         } else if resp.cmd == 0x07 && resp.data_found == 1 {
                             debug!("Something found, but not one");
-                            return Some(data.to_vec()); // send some BS data back for it to choke on
+                            return Some(buf.to_vec()); // send some BS data back for it to choke on
                         } else if resp.cmd == 0x07 && resp.data_found == 0xff {
                             debug!("Single UID found: {:?}",resp.uid_found);
                             // Here's the fun part.  If we got a uid back, we now need to format that as a DISC_UNIQUE_BRANCH UID
@@ -222,7 +222,7 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
         let outer = LNPkt {
             dst: [0x00, 0x1a, 0xf1, 0x02, 0x09, 0xee], 
             src: [0;6], 
-            seq: 0, // does it care about sequence?
+            seq: data[15], // does it care about sequence?
             is_response: 0, 
             length: (inner_vec.len() + 1).try_into().unwrap(), 
             command: 0x03, 
@@ -231,9 +231,43 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
 
         let outer_vec = outer.serialize();
 
-        println!("{:?}",outer_vec.hex_dump());
+        // println!("{:?}",outer_vec.hex_dump());
 
-        return None;
+        responder
+        .send_to(outer_vec.as_slice(), &txaddr)
+        .expect("failed to respond");
+
+    let mut buf = [0u8; 600]; // receive buffer
+
+    loop {
+        match listener.recv_from(&mut buf) {
+            Ok((len, remote_addr)) => {
+                let data = &buf[..len];
+
+                // debug!("{:?}",data.hex_dump());
+                // debug!("Got data");
+
+                let ln_pkt = LNPkt::deserialize(&data.to_vec()).unwrap();
+
+                if ln_pkt.command == 0x72 {
+                    debug!("Got an RDM response {}", (ln_pkt.length-1));
+                    // let resp = Pkt::deserialize(ln_pkt.data.to_vec()).unwrap();
+                    return Some(ln_pkt.data[..(ln_pkt.length-1) as usize].to_vec());
+                }
+
+
+                
+
+            }
+            Err(err) => {
+                error!("server: got an error: {}", err);
+                return None;
+            }
+        }
+
+    }
+
+    return None;
 
     }
 
