@@ -250,6 +250,7 @@ So then we get a discovery packet:
     0030   00 00 00 10 00 01 0c 00 00 00 00 00 00 7f ff ff   ................
     0040   ff ff ff 0e d0                                    .....
 
+
 This one actually starts with 0x7fff address as it should.  
 
 We get this response (534 bytes, truncated here):
