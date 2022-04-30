@@ -84,8 +84,7 @@ fn new_sender(addr: &SocketAddr) -> io::Result<UdpSocket> {
 /// But lumen_nova needs different packets if we're doing discovery or plain rdm
 /// Additionally DISC_UNIQUE_BRANCH responses are partially parsed by the radio
 /// So we have to do some parsing of the data... it's dumb.
-fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
-
+fn lumen_nova_transport_gen(data: &[u8], uid_thing: [u8; 6]) -> Option<Vec<u8>> {
     let IPV4: IpAddr = Ipv4Addr::new(237, 200, 1, 1).into();
     // from port 60000 to port 60001
     let addr = SocketAddr::new(IPV4, 60000);
@@ -105,7 +104,7 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
         // Send a packet, get the response, parse it to see what it was.
         let inner = LNRdmDisc {
             command : 0x4407,
-            uid_thing : [0x7c, 0xf2, 0x0b, 0x00, 0x55, 0x4c],
+            uid_thing : uid_thing,
             rdm_packet : data.to_vec()
         };
 
@@ -213,7 +212,7 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
         // send a regular RDM packet
         let inner = LNRdmNormal {
             command : 0x52,
-            uid_thing : [0x7c, 0xf2, 0x0b, 0x00, 0x55, 0x4c],
+            uid_thing : uid_thing,
             rdm_packet : data.to_vec()
         };
 
@@ -276,6 +275,16 @@ fn lumen_nova_transport(data: &[u8]) -> Option<Vec<u8>> {
     return None;
 }
 
+
+
+fn lumen_nova_transport_7c(data: &[u8]) -> Option<Vec<u8>> {
+    lumen_nova_transport_gen(data, [0x7c, 0xf2, 0x0b, 0x00, 0x55, 0x4c])
+}
+
+fn lumen_nova_transport_7b(data: &[u8]) -> Option<Vec<u8>> {
+    lumen_nova_transport_gen(data, [0x7b, 0xf2, 0x0b, 0x00, 0x55, 0x4c])
+}
+
 fn main() {
     // Statements here are executed when the compiled binary is called
 
@@ -295,6 +304,10 @@ fn main() {
     // 4c55:000bf280
     let my_uid = Uid::new(0x4c55,0x000bf280);
 
-    debug!("{:?}", do_discovery_algo(lumen_nova_transport,&my_uid));
+    let mut all_uids_found = do_discovery_algo(lumen_nova_transport_7c,&my_uid);
+
+    all_uids_found.extend(do_discovery_algo(lumen_nova_transport_7b,&my_uid));
+
+    debug!("All uids: {:?}",all_uids_found);
 
 }
