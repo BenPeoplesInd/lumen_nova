@@ -11,6 +11,16 @@ pretty-hex = "0.2.1"
 log = "0.4.14"
 simplelog = "0.10.0"
 socket2 = { version = "0.3.4", features = ["reuseport"] }
+prometheus = { version = "0.12.0", features = ["process"]}
+hyper = { version = "0.14.7", features = ["full"] }
+lazy_static = "1.4.0"
+tokio = { version = "1.6.0", features = ["full"] }
+tokio-serde = { version = "0.6", features = ["bincode"] }
+tokio-util = { version = "0.2", features = ["codec"] }
+hex = "0.4"
+
+[dependencies.redis]
+version = "*"
 
 [[bin]]
 name = "sn_test"
